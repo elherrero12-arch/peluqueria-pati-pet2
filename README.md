@@ -89,3 +89,4 @@ Una aplicación web progresiva (PWA) para la gestión de turnos en una peluquer�
 
 ## 🗂️ Estructura de archivos
 
+
