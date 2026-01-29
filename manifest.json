@@ -2,20 +2,21 @@
   "name": "Peluquería Canina Pati-pet",
   "short_name": "Pati-pet",
   "description": "Agenda profesional para peluquería canina",
-  "start_url": "/",
+  "start_url": "/peluqueria-pati-pet/",
+  "scope": "/peluqueria-pati-pet/",
   "display": "standalone",
   "background_color": "#f9f7ff",
   "theme_color": "#ffab91",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/peluqueria-pati-pet/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "/peluqueria-pati-pet/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -27,13 +28,13 @@
       "name": "Nuevo Turno",
       "short_name": "Nuevo",
       "description": "Agregar nuevo turno",
-      "url": "/#panel-nuevo"
+      "url": "/peluqueria-pati-pet/#panel-nuevo"
     },
     {
       "name": "Ver Hoy",
       "short_name": "Hoy",
       "description": "Ver turnos de hoy",
-      "url": "/#panel-dia"
+      "url": "/peluqueria-pati-pet/#panel-dia"
     }
   ]
 }
