@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Agenda profesional para peluquería canina Pati-pet. Gestiona turnos, clientes y estadísticas.">
-    <meta name="theme-color" content="#ffab91">
-    <title>Peluquería Canina Pati-pet - Agenda Profesional</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="icon-192.png" type="image/png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffab91">
+  <title>Peluquería Canina Pati-pet</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon-192.png">
+  
+  <!-- FullCalendar CSS -->
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    
     <style>
         * { 
             box-sizing: border-box; 
@@ -632,6 +635,16 @@
         .shake {
             animation: shake 0.5s ease-in-out;
         }
+            .fc-event {
+      border-left: 4px solid;
+      cursor: pointer;
+    }
+    .fc-event:hover {
+      opacity: 0.9;
+    }
+    .fc-day-today {
+      background-color: rgba(255, 171, 145, 0.1) !important;
+            }
     </style>
 </head>
 <body>
@@ -1645,6 +1658,485 @@
         // ====================
  
     </script>
+    <!-- FullCalendar JS -->
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.min.js'></script>
+
+<script>
+// SISTEMA DE GUARDADO ROBUSTO
+let calendar = null;
+const STORAGE_KEY = 'patipet_calendar_events_v2';
+
+// 1. FUNCIÓN DE GUARDADO MEJORADA
+function guardarEventoSeguro(evento) {
+    try {
+        // Validar evento
+        if (!evento || !evento.start || !evento.title) {
+            console.error('Evento inválido');
+            return false;
+        }
+        
+        // Asegurar formato de fechas
+        if (typeof evento.start === 'string') {
+            evento.start = new Date(evento.start).toISOString();
+        } else if (evento.start instanceof Date) {
+            evento.start = evento.start.toISOString();
+        }
+        
+        if (evento.end) {
+            if (typeof evento.end === 'string') {
+                evento.end = new Date(evento.end).toISOString();
+            } else if (evento.end instanceof Date) {
+                evento.end = evento.end.toISOString();
+            }
+        }
+        
+        // Asegurar ID único
+        if (!evento.id) {
+            evento.id = 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        // Asegurar extendedProps para datos extra
+        if (!evento.extendedProps) {
+            evento.extendedProps = {};
+        }
+        
+        // Guardar costo siempre
+        if (evento.costo && !evento.extendedProps.costo) {
+            evento.extendedProps.costo = evento.costo;
+        }
+        
+        if (evento.cliente && !evento.extendedProps.cliente) {
+            evento.extendedProps.cliente = evento.cliente;
+        }
+        
+        if (evento.telefono && !evento.extendedProps.telefono) {
+            evento.extendedProps.telefono = evento.telefono;
+        }
+        
+        // Obtener eventos existentes
+        let eventos = cargarEventosSeguro();
+        
+        // Evitar duplicados
+        const index = eventos.findIndex(e => e.id === evento.id);
+        if (index > -1) {
+            eventos[index] = evento; // Actualizar
+        } else {
+            eventos.push(evento); // Agregar nuevo
+        }
+        
+        // Guardar con verificación
+        const jsonString = JSON.stringify(eventos);
+        localStorage.setItem(STORAGE_KEY, jsonString);
+        
+        // Verificar guardado
+        const verificado = localStorage.getItem(STORAGE_KEY);
+        if (verificado === jsonString) {
+            console.log('Evento guardado correctamente:', evento.id);
+            return true;
+        } else {
+            console.error('Error en verificación de guardado');
+            // Backup en sessionStorage
+            sessionStorage.setItem('backup_' + evento.id, jsonString);
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('Error al guardar evento:', error);
+        // Último recurso: guardar en array de respaldo
+        try {
+            const backupEvents = JSON.parse(sessionStorage.getItem('backup_events') || '[]');
+            backupEvents.push(evento);
+            sessionStorage.setItem('backup_events', JSON.stringify(backupEvents));
+        } catch (e) {}
+        return false;
+    }
+}
+
+// 2. FUNCIÓN DE CARGA MEJORADA
+function cargarEventosSeguro() {
+    try {
+        const datos = localStorage.getItem(STORAGE_KEY);
+        
+        if (!datos || datos === 'null' || datos === 'undefined') {
+            return [];
+        }
+        
+        let eventos = JSON.parse(datos);
+        
+        if (!Array.isArray(eventos)) {
+            console.warn('Datos corruptos, reiniciando array');
+            return [];
+        }
+        
+        // Filtrar y limpiar eventos
+        eventos = eventos.filter(evento => {
+            return evento && 
+                   evento.id && 
+                   evento.title && 
+                   evento.start &&
+                   !isNaN(new Date(evento.start).getTime());
+        });
+        
+        // Limpiar eventos duplicados
+        const uniqueIds = new Set();
+        eventos = eventos.filter(evento => {
+            if (uniqueIds.has(evento.id)) {
+                return false;
+            }
+            uniqueIds.add(evento.id);
+            return true;
+        });
+        
+        console.log('Eventos cargados:', eventos.length);
+        return eventos;
+        
+    } catch (error) {
+        console.error('Error al cargar eventos:', error);
+        return [];
+    }
+}
+
+// 3. INICIALIZAR CALENDARIO
+function inicializarCalendario() {
+    const calendarEl = document.getElementById('calendar');
+    
+    if (!calendarEl) {
+        console.error('Elemento del calendario no encontrado');
+        return;
+    }
+    
+    // Cargar eventos
+    const eventos = cargarEventosSeguro();
+    
+    // Configurar calendario
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'es',
+        timeZone: 'local',
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        buttonText: {
+            today: 'Hoy',
+            month: 'Mes',
+            week: 'Semana',
+            day: 'Día'
+        },
+        firstDay: 1, // Lunes
+        navLinks: true,
+        editable: true,
+        selectable: true,
+        selectMirror: true,
+        dayMaxEvents: true,
+        weekends: true,
+        
+        // FECHAS CORREGIDAS
+        validRange: {
+            start: '2024-01-01',
+            end: '2027-12-31'
+        },
+        
+        // PERMITIR MODIFICAR HOY
+        selectAllow: function(selectInfo) {
+            const ahora = new Date();
+            ahora.setHours(0, 0, 0, 0);
+            return selectInfo.start >= ahora;
+        },
+        
+        eventAllow: function(dropInfo, draggedEvent) {
+            const ahora = new Date();
+            ahora.setHours(0, 0, 0, 0);
+            return dropInfo.start >= ahora;
+        },
+        
+        // MOSTRAR HORAS CORRECTAMENTE
+        displayEventTime: true,
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        },
+        
+        // EVENTOS
+        events: eventos,
+        
+        // MANEJAR SELECCIÓN DE FECHA
+        select: function(info) {
+            const ahora = new Date();
+            if (info.start < ahora) {
+                alert('No se pueden crear turnos en fechas pasadas');
+                calendar.unselect();
+                return;
+            }
+            
+            // Tu código para abrir formulario de nuevo turno
+            abrirFormularioNuevoTurno(info.start, info.end);
+            calendar.unselect();
+        },
+        
+        // MANEJAR CLIC EN EVENTO
+        eventClick: function(info) {
+            const evento = info.event;
+            const inicioEvento = new Date(evento.start);
+            const ahora = new Date();
+            
+            // PERMITIR MODIFICAR HOY
+            if (inicioEvento < ahora) {
+                const diferenciaHoras = (ahora - inicioEvento) / (1000 * 60 * 60);
+                if (diferenciaHoras > 1) {
+                    alert('Este turno ya pasó. Solo se pueden modificar turnos de hoy.');
+                    return;
+                }
+            }
+            
+            // Abrir editor de evento
+            abrirEditorEvento(evento);
+        },
+        
+        // GUARDAR CAMBIOS EN EVENTO
+        eventDrop: function(info) {
+            const evento = info.event;
+            guardarEventoSeguro({
+                id: evento.id,
+                title: evento.title,
+                start: evento.start,
+                end: evento.end,
+                extendedProps: evento.extendedProps
+            });
+        },
+        
+        eventResize: function(info) {
+            const evento = info.event;
+            guardarEventoSeguro({
+                id: evento.id,
+                title: evento.title,
+                start: evento.start,
+                end: evento.end,
+                extendedProps: evento.extendedProps
+            });
+        },
+        
+        // RENDERIZAR EVENTOS CON DATOS EXTRA
+        eventContent: function(arg) {
+            const evento = arg.event;
+            const props = evento.extendedProps;
+            
+            const contenedor = document.createElement('div');
+            contenedor.style.padding = '2px';
+            contenedor.style.fontSize = '12px';
+            
+            // Mostrar título principal
+            const titulo = document.createElement('div');
+            titulo.textContent = evento.title;
+            titulo.style.fontWeight = 'bold';
+            titulo.style.marginBottom = '2px';
+            contenedor.appendChild(titulo);
+            
+            // Mostrar costo si existe
+            if (props && props.costo) {
+                const costo = document.createElement('div');
+                costo.textContent = '$' + props.costo;
+                costo.style.color = '#4caf50';
+                costo.style.fontSize = '11px';
+                contenedor.appendChild(costo);
+            }
+            
+            // Mostrar teléfono si existe
+            if (props && props.telefono) {
+                const telefono = document.createElement('div');
+                telefono.textContent = '📱 ' + props.telefono;
+                telefono.style.fontSize = '10px';
+                telefono.style.color = '#666';
+                contenedor.appendChild(telefono);
+            }
+            
+            return { domNodes: [contenedor] };
+        }
+    });
+    
+    calendar.render();
+    console.log('Calendario inicializado');
+}
+
+// 4. FUNCIONES AUXILIARES (AJUSTA A TU CÓDIGO)
+function abrirFormularioNuevoTurno(start, end) {
+    // Tu código existente para abrir formulario
+    console.log('Nuevo turno para:', start, end);
+    // Mostrar tu modal/formulario aquí
+}
+
+function abrirEditorEvento(evento) {
+    // Tu código existente para editar evento
+    console.log('Editando evento:', evento.id);
+    // Mostrar editor con datos del evento
+    const props = evento.extendedProps;
+    
+    // Ejemplo de cómo llenar formulario
+    if (props) {
+        console.log('Cliente:', props.cliente);
+        console.log('Costo:', props.costo);
+        console.log('Teléfono:', props.telefono);
+    }
+}
+
+// 5. INICIALIZAR AL CARGAR
+document.addEventListener('DOMContentLoaded', function() {
+    inicializarCalendario();
+    
+    // Registrar Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./service-worker.js')
+            .then(registration => {
+                console.log('Service Worker registrado');
+                
+                // Registrar sync para background
+                if ('sync' in registration) {
+                    registration.sync.register('sync-turnos');
+                }
+            })
+            .catch(error => {
+                console.log('Error registrando Service Worker:', error);
+            });
+    }
+    
+    // Backup automático cada 24 horas
+    setInterval(() => {
+        const eventos = cargarEventosSeguro();
+        const backupKey = 'backup_' + new Date().toISOString().split('T')[0];
+        localStorage.setItem(backupKey, JSON.stringify(eventos));
+        console.log('Backup automático realizado');
+    }, 24 * 60 * 60 * 1000);
+});
+
+// 6. FUNCIÓN DE EXPORTACIÓN PARA BACKUP
+function exportarBackup() {
+    try {
+        const eventos = cargarEventosSeguro();
+        const datos = JSON.stringify(eventos, null, 2);
+        const blob = new Blob([datos], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // Crear enlace de descarga
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'backup-turnos-' + new Date().toISOString().split('T')[0] + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('Backup exportado correctamente');
+    } catch (error) {
+        alert('Error al exportar backup: ' + error.message);
+    }
+}
+
+// 7. FUNCIÓN DE IMPORTACIÓN
+function importarBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const eventos = JSON.parse(e.target.result);
+            
+            if (!Array.isArray(eventos)) {
+                throw new Error('Formato inválido');
+            }
+            
+            // Validar cada evento
+            const eventosValidados = eventos.filter(evt => 
+                evt && evt.id && evt.title && evt.start
+            );
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(eventosValidados));
+            
+            // Recargar calendario
+            if (calendar) {
+                calendar.removeAllEvents();
+                calendar.addEventSource(eventosValidados);
+            }
+            
+            alert('Backup importado: ' + eventosValidados.length + ' turnos restaurados');
+        } catch (error) {
+            alert('Error al importar: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// 8. BOTONES DE BACKUP (añade en tu HTML)
+function agregarBotonesBackup() {
+    const botonExportar = document.createElement('button');
+    botonExportar.textContent = '📥 Exportar Backup';
+    botonExportar.onclick = exportarBackup;
+    botonExportar.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        right: 10px;
+        z-index: 1000;
+        padding: 10px;
+        background: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+    `;
+    
+    const botonImportar = document.createElement('input');
+    botonImportar.type = 'file';
+    botonImportar.accept = '.json';
+    botonImportar.onchange = importarBackup;
+    botonImportar.style.cssText = `
+        position: fixed;
+        bottom: 40px;
+        right: 10px;
+        z-index: 1000;
+        padding: 10px;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+        width: 140px;
+    `;
+    
+    const labelImportar = document.createElement('label');
+    labelImportar.textContent = '📤 Importar Backup';
+    labelImportar.htmlFor = botonImportar.id;
+    labelImportar.style.cssText = `
+        position: fixed;
+        bottom: 40px;
+        right: 10px;
+        z-index: 1000;
+        padding: 10px;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+        cursor: pointer;
+        width: 140px;
+        text-align: center;
+        display: block;
+    `;
+    
+    botonImportar.id = 'file-input-backup';
+    botonImportar.style.display = 'none';
+    
+    document.body.appendChild(botonExportar);
+    document.body.appendChild(labelImportar);
+    document.body.appendChild(botonImportar);
+}
+
+// Agregar botones cuando cargue la página
+setTimeout(agregarBotonesBackup, 1000);
+</script>
 </body>
+
 
 </html>
