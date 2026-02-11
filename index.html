@@ -778,6 +778,84 @@
 
 .boton-refresh:hover {
   background: #f57c00;
+} 
+
+/* ===== ARREGLAR EXPANSIÓN VERTICAL DE CUADROS MES ===== */
+.dias-mes {
+  grid-auto-rows: 90px !important; /* ALTURA FIJA POR FILA */
+}
+
+.dia {
+  height: 90px !important; /* ALTURA FIJA */
+  max-height: 90px !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+/* Contenedor de turnos con scroll VERTICAL */
+.dia .turnos-container {
+  height: 60px !important; /* ALTURA FIJA para turnos */
+  max-height: 60px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  margin-top: 5px !important;
+}
+
+/* Cada turno individual - más compacto */
+.turno-en-casillero {
+  height: 20px !important;
+  max-height: 20px !important;
+  margin: 1px 0 !important;
+  padding: 1px 3px !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+}
+
+/* Número del día más pequeño */
+.dia > div:first-child {
+  font-size: 14px !important;
+  margin-bottom: 2px !important;
+}
+
+/* Contador de turnos en esquina */
+.turno-count {
+  position: absolute !important;
+  bottom: 2px !important;
+  right: 2px !important;
+  font-size: 9px !important;
+  padding: 1px 4px !important;
+  background: rgba(255, 171, 145, 0.3) !important;
+  border-radius: 3px !important;
+}
+
+/* Asegurar que grid mantenga estructura */
+#calendario-mes {
+  min-height: 600px !important; /* ALTURA MÍNIMA PARA CALENDARIO */
+}   
+
+/* ===== IGUALAR ANCHO DE TODOS LOS PANELES ===== */
+.panel {
+  width: calc(100% - 40px) !important; /* 40px = 20px padding izquierda + 20px derecha */
+  max-width: calc(100% - 40px) !important;
+  margin-left: 20px !important;
+  margin-right: 20px !important;
+  box-sizing: border-box !important;
+}
+
+/* Asegurar que el body no tenga padding extra */
+body {
+  padding: 20px !important;
+  margin: 0 !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+/* Contenedor principal */
+.header-container, .nav {
+  width: calc(100% - 40px) !important;
+  margin-left: 20px !important;
+  margin-right: 20px !important;
+  box-sizing: border-box !important;
 }      
       
     </style>
@@ -817,16 +895,14 @@
         <button onclick="mostrarPanel('panel-clientes')">👥 Clientes</button>
         <button onclick="mostrarPanel('panel-estadisticas')">📊 Estadísticas</button>
         <div class="barra-backup">
-  <small style="color: #666;">💾 Backup: </small>
+  <small style="color: #666; white-space: nowrap;">💾 Backup: </small>
   <button class="boton-exportar" onclick="exportarBackup()">📥 Exportar</button>
-  <label class="boton-importar">
+  <label class="boton-importar" style="display: inline-block;">
     📤 Importar
     <input type="file" accept=".json" onchange="importarBackup(event)" style="display: none;">
   </label>
-  <button class="boton-refresh" onclick="recargarAppConCacheClean()" title="Actualizar código (no borra datos)">
-    🔄 Código
-  </button>
-        </div>
+  <button class="boton-refresh" onclick="recargarAppConCacheClean()" title="Actualizar código">🔄 Código</button>
+</div>
     
     <!-- Panel: Vista Mensual -->
     <div id="panel-mes" class="panel active">
@@ -2316,34 +2392,53 @@ function importarBackup(event) {
 }
 
 // ====================
-// RECARGAR APP - ACTUALIZAR CÓDIGO SIN PERDER DATOS
+// ACTUALIZAR CÓDIGO DE LA APP (NO DATOS)
 // ====================
 function recargarAppConCacheClean() {
-    if (!confirm('¿Actualizar la aplicación?\n\nEsto forzará la carga del código más reciente desde el servidor.\n\n✅ Tus datos SEGUIRÁN intactos.\n🔄 Se recargará la página.')) {
+    if (!confirm('¿Actualizar código de la aplicación?\n\nEsto cargará la última versión del código.\n✅ TUS DATOS NO SE PERDERÁN.\n🔄 La página se recargará.')) {
         return;
     }
     
-    // 1. Forzar que el Service Worker use la versión más nueva
+    // 1. Guardar estado actual para restaurar después
+    const scrollPos = window.scrollY;
+    const panelActivo = document.querySelector('.panel.active').id;
+    
+    // 2. Forzar actualización de Service Worker
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            registrations.forEach(function(registration) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(registration => {
                 registration.update();
-                console.log('Service Worker actualizado');
             });
         });
     }
     
-    // 2. Forzar recarga del navegador SIN caché (solo código, no datos)
-    setTimeout(function() {
-        // Método 1: Usar location.reload con true (fuerza caché)
+    // 3. Recargar con parámetro para evitar caché
+    setTimeout(() => {
+        // Método 1: reload con true (fuerza caché del servidor)
         window.location.reload(true);
         
-        // Método alternativo: Redirigir con timestamp
-        // window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
-    }, 1000);
+        // Método alternativo: añadir timestamp a la URL
+        // const url = new URL(window.location);
+        // url.searchParams.set('_t', Date.now());
+        // window.location.href = url.toString();
+    }, 500);
     
-    alert('🔄 Recargando aplicación... Tus datos están seguros.');
+    // 4. Opcional: restaurar estado después de recargar
+    window.onload = function() {
+        window.scrollTo(0, scrollPos);
+        const botonPanel = document.querySelector(`[onclick*="${panelActivo}"]`);
+        if (botonPanel) botonPanel.click();
+    };
+}
+
+// También podemos añadir un atajo de teclado (Ctrl+Shift+R)
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+        e.preventDefault();
+        recargarAppConCacheClean();
     }
+});
+  
 // 8. FUNCIÓN ORIGINAL DE BOTONES FLOTANTES (LA MANTENEMOS POR SI ACASO)
 function agregarBotonesBackup() {
     const botonExportar = document.createElement('button');
@@ -2398,9 +2493,10 @@ function agregarBotonesBackup() {
         width: 140px;
         text-align: center;
   </script>
-  </body>
+</body>
 
 </html>
+
 
 
 
