@@ -1265,8 +1265,14 @@
     function cargarListaClientes() {
       const datalist = document.getElementById('lista-clientes');
       datalist.innerHTML = clientes.map(c => `<option value="${c.nombre}">`).join('');
-      
+  
       const inputCliente = document.getElementById('cliente');
+  
+      // Sacamos el listener viejo y ponemos uno nuevo con 'input'
+      inputCliente.removeEventListener('input', autocompletarCliente);
+      inputCliente.addEventListener('input', autocompletarCliente);
+  
+      // También dejamos el 'change' por si algun navegador lo necesita
       inputCliente.removeEventListener('change', autocompletarCliente);
       inputCliente.addEventListener('change', autocompletarCliente);
     }
@@ -1274,11 +1280,26 @@
     // Autocompletar teléfono y notas (precio NO se toca)
     function autocompletarCliente() {
       const nombreIngresado = document.getElementById('cliente').value.trim();
-      const clienteEncontrado = clientes.find(c => c.nombre === nombreIngresado);
-      
+  
+      // Si no hay texto, no autocompletamos
+      if (!nombreIngresado) return;
+  
+      const clienteEncontrado = clientes.find(c => 
+        c.nombre.toLowerCase() === nombreIngresado.toLowerCase()
+      );
+  
       if (clienteEncontrado) {
-        document.getElementById('telefono').value = clienteEncontrado.telefono || '';
-        document.getElementById('notas').value = clienteEncontrado.notas || '';
+        // Solo completar si el campo está vacío o es el cliente seleccionado
+        const telefonoActual = document.getElementById('telefono').value.trim();
+        const notasActual = document.getElementById('notas').value.trim();
+    
+        if (!telefonoActual || telefonoActual === '') {
+          document.getElementById('telefono').value = clienteEncontrado.telefono || '';
+        }
+    
+        if (!notasActual || notasActual === '') {
+          document.getElementById('notas').value = clienteEncontrado.notas || '';
+        }
       }
     }
     
@@ -1593,4 +1614,5 @@
     });
   </script>
 </body>
+
 </html>
