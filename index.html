@@ -998,67 +998,90 @@
     // 5. VISTA DIARIA
     // ====================
     function cargarDia(fecha = null) {
-      const inputFecha = document.getElementById('fecha-dia');
-      const fechaObj = fecha ? new Date(fecha) : new Date(inputFecha.value || new Date());
-      const fechaStr = fechaObj.toISOString().split('T')[0];
-      inputFecha.value = fechaStr;
-      
-      const turnosDia = turnos.filter(t => t.fecha.split('T')[0] === fechaStr)
-                             .sort((a,b) => a.hora.localeCompare(b.hora));
-      
-      let html = `<h3 style="color:#5d4037; margin-bottom:15px;">
-                   ${fechaObj.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                 </h3>`;
-      
-      if (turnosDia.length === 0) {
+    const inputFecha = document.getElementById('fecha-dia');
+
+    // 🔥 Construir fecha en hora LOCAL (evita el desfase UTC)
+    let fechaObj;
+    if (fecha) {
+        const [anio, mes, dia] = fecha.split('-').map(Number);
+        fechaObj = new Date(anio, mes - 1, dia);
+    } else {
+        const valor = inputFecha.value;
+        if (valor) {
+            const [anio, mes, dia] = valor.split('-').map(Number);
+            fechaObj = new Date(anio, mes - 1, dia);
+        } else {
+            fechaObj = new Date();
+        }
+    }
+
+    const fechaStr = fechaObj.toISOString().split('T')[0];
+    inputFecha.value = fechaStr;
+
+    const turnosDia = turnos
+        .filter(t => t.fecha.split('T')[0] === fechaStr)
+        .sort((a, b) => a.hora.localeCompare(b.hora));
+
+    let html = `<h3 style="color:#5d4037; margin-bottom:15px;">
+        ${fechaObj.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        })}
+    </h3>`;
+
+    if (turnosDia.length === 0) {
         html += '<div style="text-align:center; padding:30px; color:#8d6e63; background:#f9f9f9; border-radius:10px;">';
         html += '<div style="font-size:48px; margin-bottom:15px;">🐕</div>';
         html += '<p style="font-size:1.1rem;">No hay turnos programados para este día.</p>';
         html += '</div>';
-      } else {
+    } else {
         turnosDia.forEach(t => {
-          html += `
+            html += `
             <div class="turno-item">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <div><strong style="font-size:1.2rem;">🐶 ${t.cliente}</strong></div>
-                <div><span style="background:#ffab91; color:white; padding:4px 10px; border-radius:12px; font-size:12px;">${t.hora}</span></div>
-              </div>
-              <div style="margin-bottom:8px;"><strong>✂️ Servicio:</strong> ${t.servicio}</div>
-              <div style="margin-bottom:8px;"><strong>💰 Precio:</strong> $${t.precio.toFixed(2)}</div>
-              ${t.telefono ? `<div style="margin-bottom:8px;"><strong>📞 Teléfono:</strong> ${t.telefono}</div>` : ''}
-              ${t.notas ? `<div style="margin-bottom:15px;"><strong>📝 Notas:</strong> ${t.notas}</div>` : ''}
-              <div class="action-buttons">
-                <button class="whatsapp-btn" onclick="enviarWhatsApp(${t.id})">
-                  <span>📱</span> WhatsApp
-                </button>
-                <button class="edit-btn" onclick="editarTurno(${t.id})">
-                  <span>✏️</span> Editar
-                </button>
-                <button class="delete-btn" onclick="eliminarTurno(${t.id})">
-                  <span>🗑️</span> Eliminar
-                </button>
-              </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div><strong style="font-size:1.2rem;">🐶 ${t.cliente}</strong></div>
+                    <div><span style="background:#ffab91; color:white; padding:4px 10px; border-radius:12px; font-size:12px;">${t.hora}</span></div>
+                </div>
+                <div style="margin-bottom:8px;"><strong>✂️ Servicio:</strong> ${t.servicio}</div>
+                <div style="margin-bottom:8px;"><strong>💰 Precio:</strong> $${t.precio.toFixed(2)}</div>
+                ${t.telefono ? `<div style="margin-bottom:8px;"><strong>📞 Teléfono:</strong> ${t.telefono}</div>` : ''}
+                ${t.notas ? `<div style="margin-bottom:15px;"><strong>📝 Notas:</strong> ${t.notas}</div>` : ''}
+                <div class="action-buttons">
+                    <button class="whatsapp-btn" onclick="enviarWhatsApp(${t.id})">
+                        <span>📱</span> WhatsApp
+                    </button>
+                    <button class="edit-btn" onclick="editarTurno(${t.id})">
+                        <span>✏️</span> Editar
+                    </button>
+                    <button class="delete-btn" onclick="eliminarTurno(${t.id})">
+                        <span>🗑️</span> Eliminar
+                    </button>
+                </div>
             </div>
-          `;
+            `;
         });
-      }
-      
-      document.getElementById('lista-dia').innerHTML = html;
-    }
-    
-    function cargarDiaEspecifico(fechaStr) {
-      const fechaObj = new Date(fechaStr);
-      const hoy = new Date();
-      hoy.setHours(0,0,0,0);
-      
-      if (fechaObj < hoy) {
-        alert('⚠️ Este día ya pasó. Puedes ver los turnos pero no modificarlos.');
-      }
-      
-      mostrarPanel('panel-dia');
-      setTimeout(() => cargarDia(fechaStr), 100);
     }
 
+    document.getElementById('lista-dia').innerHTML = html;
+}
+    
+    function cargarDiaEspecifico(fechaStr) {
+    const [anio, mes, dia] = fechaStr.split('-').map(Number);
+    const fechaObj = new Date(anio, mes - 1, dia);
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    if (fechaObj < hoy) {
+        alert('⚠️ Este día ya pasó. Puedes ver los turnos pero no modificarlos.');
+    }
+
+    mostrarPanel('panel-dia');
+    setTimeout(() => cargarDia(fechaStr), 100);
+    }
+    
     // ====================
     // 6. GESTIÓN DE TURNOS
     // ====================
@@ -1506,3 +1529,4 @@
   </script>
 </body>
 </html>
+
